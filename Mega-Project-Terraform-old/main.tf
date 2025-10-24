@@ -97,11 +97,15 @@ resource "aws_eks_cluster" "nakodtech" {
 }
 
 resource "aws_eks_addon" "ebs_csi_driver" {
-  cluster_name    = aws_eks_cluster.nakodtech.name
-  addon_name      = "aws-ebs-csi-driver"
-  
+  cluster_name = aws_eks_cluster.nakodtech.name
+  addon_name   = "aws-ebs-csi-driver"
+
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
+
+  depends_on = [
+    aws_eks_node_group.nakodtech
+  ]
 }
 
 resource "aws_eks_node_group" "nakodtech" {

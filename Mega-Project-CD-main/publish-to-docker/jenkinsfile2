@@ -1,0 +1,83 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven3'
+        jdk 'jdk17'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+        IMAGE_TAG = "v${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main', credentialsId: 'git-token', url: 'https://github.com/bernardofosu/Mega-Project-CI-main.git'
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                sh 'mvn compile'
+            }
+        }
+
+        stage('Testing') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        // NEW: build the jar so Docker can COPY it
+        stage('Package (create JAR)') {
+            steps {
+                echo "📦 Packaging with Maven (produces target/*.jar)"
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+
+        // NEW: verify jar exists before trying to build the image
+        stage('Verify JAR') {
+            steps {
+                sh '''
+                    echo "🔎 Verifying JAR exists in target/ ..."
+                    ls -la target || true
+                    if ! ls target/*.jar 1>/dev/null 2>&1; then
+                      echo "❌ ERROR: no jar found in target/ — mvn package likely failed or jar name mismatch"
+                      exit 1
+                    fi
+                    echo "✅ JAR found:"
+                    ls -la target/*.jar
+                '''
+            }
+        }
+
+        stage('Docker Image Build & Tag') {
+            steps {
+                sh '''
+                    echo "🧱 Building Docker image from local JAR..."
+                    docker build -t bofosu1/bankapp:${IMAGE_TAG} .
+                    echo "✅ Docker image built successfully!"
+                    docker images | grep bofosu1 || true
+                '''
+            }
+        }
+
+        // (optional) you can add Trivy/Sonar/Nexus stages after this
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+            echo "Artifacts archived: target/*.jar"
+        }
+        success {
+            echo "🎉 Pipeline completed successfully."
+        }
+        failure {
+            echo "❌ Pipeline failed — check console output."
+        }
+    }
+}

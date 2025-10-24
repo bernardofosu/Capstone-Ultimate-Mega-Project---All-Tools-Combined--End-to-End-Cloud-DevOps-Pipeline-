@@ -1,0 +1,120 @@
+# ===============================
+# 0. Namespace
+# ===============================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: webapps
+---
+# ===============================
+# 1. Service Account
+# ===============================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins
+  namespace: webapps
+---
+# ===============================
+# 2. Role
+# ===============================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jenkins-role
+  namespace: webapps
+rules:
+  # Core API resources
+  - apiGroups: [""]
+    resources:
+      - secrets
+      - configmaps
+      - persistentvolumeclaims
+      - services
+      - pods
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+
+  # Apps API group
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - replicasets
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+
+  # Networking API group
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+
+  # Autoscaling API group
+  - apiGroups: ["autoscaling"]
+    resources:
+      - horizontalpodautoscalers
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+---
+# ===============================
+# 3. Role Binding
+# ===============================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jenkins-rolebinding
+  namespace: webapps
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jenkins-role
+subjects:
+  - kind: ServiceAccount
+    name: jenkins
+    namespace: webapps
+---
+# ===============================
+# 4. Cluster Role
+# ===============================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jenkins-cluster-role
+rules:
+  - apiGroups: [""]
+    resources:
+      - persistentvolumes
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - storageclasses
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+---
+# ===============================
+# 5. Cluster Role Binding
+# ===============================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jenkins-cluster-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jenkins-cluster-role
+subjects:
+  - kind: ServiceAccount
+    name: jenkins
+    namespace: webapps
+---
+# ===============================
+# 6. Service Account Token Secret
+# ===============================
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: sa-secret
+  namespace: webapps
+  annotations:
+    kubernetes.io/service-account.name: jenkins
+# kubectl apply -f rbac.yaml
+#kubectl get sa,role,rolebinding,clusterrole,clusterrolebinding,secrets -n webapps
+

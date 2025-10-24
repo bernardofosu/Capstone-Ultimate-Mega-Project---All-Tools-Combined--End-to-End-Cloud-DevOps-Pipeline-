@@ -1,8 +1,15 @@
 # RBAC
- 
- RBAC YAML configuration for the `jenkins` ServiceAccount, Role, RoleBinding, ClusterRole, and ClusterRoleBinding to ensure the ServiceAccount can create all the resources in your YAML file, including dynamic provisioning with StorageClasses and PersistentVolumes.
+
+RBAC YAML configuration for the `jenkins` ServiceAccount, Role, RoleBinding, ClusterRole, and ClusterRoleBinding to ensure the ServiceAccount can create all the resources in your YAML file, including dynamic provisioning with StorageClasses and PersistentVolumes.
 
 ### **1. ServiceAccount**
+
+```sh
+nano serviceaccount.yaml
+kubectl apply -f serviceaccount.yaml
+kubectl get sa -n webapps
+```
+
 ```yaml
 apiVersion: v1
 kind: ServiceAccount
@@ -11,8 +18,14 @@ metadata:
   namespace: webapps
 ```
 
-
 ### **2. Role**
+
+```sh
+nano role.yaml
+kubectl apply -f role.yaml
+kubectl get role -n webapps
+```
+
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -28,30 +41,35 @@ rules:
       - persistentvolumeclaims
       - services
       - pods
-    verbs: ["get", "list", "watch", "create", "update", "delete","patch"]
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
 
   # Permissions for apps API group
   - apiGroups: ["apps"]
     resources:
       - deployments
       - replicasets
-    verbs: ["get", "list", "watch", "create", "update", "delete","patch"]
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
 
   # Permissions for networking API group
   - apiGroups: ["networking.k8s.io"]
     resources:
       - ingresses
-    verbs: ["get", "list", "watch", "create", "update", "delete","patch"]
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
 
   # Permissions for autoscaling API group
   - apiGroups: ["autoscaling"]
     resources:
       - horizontalpodautoscalers
-    verbs: ["get", "list", "watch", "create", "update", "delete","patch"]
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
 ```
 
-
 ### **3. RoleBinding**
+
+```sh
+nano rolebinding.yaml
+kubectl apply -f rolebinding.yaml
+```
+
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -68,8 +86,13 @@ subjects:
     namespace: webapps
 ```
 
-
 ### **4. ClusterRole**
+
+```sh
+nano clusterrole.yaml
+kubectl apply -f clusterrole.yaml
+```
+
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -86,8 +109,13 @@ rules:
     verbs: ["get", "list", "watch", "create", "update", "delete"]
 ```
 
-
 ### **5. ClusterRoleBinding**
+
+```sh
+nano clusterrolebinding.yaml
+kubectl apply -f clusterrolebinding.yaml.yaml
+```
+
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -103,22 +131,24 @@ subjects:
     namespace: webapps
 ```
 
-
-
 ### **Explanation of Permissions**
 
-1. **ServiceAccount**:  
+1. **ServiceAccount**:
+
    - The `jenkins` ServiceAccount is created in the `webapps` namespace.
 
 2. **Role**:
+
    - Grants access to namespace-specific resources:
      - **Secrets**, **ConfigMaps**, **PersistentVolumeClaims**, **Services**, and **Pods**.
      - **Deployments** and **ReplicaSets** under the `apps` API group.
 
 3. **RoleBinding**:
+
    - Binds the `jenkins` Role to the ServiceAccount in the `webapps` namespace.
 
 4. **ClusterRole**:
+
    - Grants access to cluster-wide resources:
      - **PersistentVolumes** (required for dynamic provisioning).
      - **StorageClasses** (required to create and manage storage classes for dynamic PV provisioning).
@@ -126,10 +156,10 @@ subjects:
 5. **ClusterRoleBinding**:
    - Binds the `jenkins` ClusterRole to the ServiceAccount for cluster-wide operations.
 
-
-
 ### **How to Apply the YAML Files**
+
 1. Save each YAML snippet as a separate file:
+
    - `serviceaccount.yaml`
    - `role.yaml`
    - `rolebinding.yaml`
@@ -137,6 +167,7 @@ subjects:
    - `clusterrolebinding.yaml`
 
 2. Apply them in the following order:
+
    ```bash
    kubectl apply -f serviceaccount.yaml
    kubectl apply -f role.yaml
@@ -152,5 +183,53 @@ subjects:
    kubectl auth can-i create persistentvolumes --as=system:serviceaccount:webapps:jenkins
    ```
 
+## Hpw Will Jenkins use these Service Account
+
 ### Generate token using service account in the namespace
+
 [Create Token](https://kubernetes.io/docs/reference/access-authn-authz/service-accounts-admin/#:~:text=To%20create%20a%20non%2Dexpiring,with%20that%20generated%20token%20data.)
+
+```yaml
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: sa-secret
+  annotations:
+    kubernetes.io/service-account.name: jenkins
+```
+
+```sh
+nano secret.yaml
+kubectl apply -f secret.yaml -n webapps
+
+kubectl get secret -n webapps
+```
+
+or
+
+```yaml
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: sa-secret
+  namespace: webapps
+  annotations:
+    kubernetes.io/service-account.name: jenkins
+```
+
+```sh
+nano secret.yaml
+kubectl apply -f secret.yaml
+
+kubectl get secret -n webapps
+```
+
+### How to get the token for Service Accounts to Use above Roles
+
+```sh
+kubectl describe secret -n webapps
+```
+
+[Why Service Accounts for Jenkins]()

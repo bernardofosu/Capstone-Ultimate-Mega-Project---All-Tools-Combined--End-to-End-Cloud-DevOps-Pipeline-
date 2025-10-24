@@ -1,0 +1,73 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven3'
+        jdk 'jdk17'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main', credentialsId: 'git-token', url: 'https://github.com/bernardofosu/Mega-Project-CI-main.git'
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                sh 'mvn compile'
+            }
+        }
+
+        stage('Testing') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        stage('Trivy FS Scan') {
+            steps {
+               sh "trivy fs --format table -o fs-report.html ."
+            }
+        }
+
+        stage('Sonar Analysis') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectKey=gcbank \
+                        -Dsonar.projectName=gcbank \
+                        -Dsonar.java.binaries=target
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate Check') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-cred'
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn package'
+            }
+        }
+
+        stage('Publish To Nexus') {
+            steps {
+                withMaven(globalMavenSettingsConfig: 'global-maven-settings-config', maven: 'maven3', traceability: true) {
+                    sh 'mvn deploy'
+                }
+            }
+        }
+    }
+}

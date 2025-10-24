@@ -1,0 +1,172 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven3'
+        jdk 'jdk17'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+        IMAGE_TAG = "v${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main', credentialsId: 'git-token', url: 'https://github.com/bernardofosu/Mega-Project-CI-main.git'
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                sh "mvn compile"
+            }
+        }
+
+        stage('Testing') {
+            steps {
+                sh "mvn test"
+            }
+        }
+
+        stage('Trivy FS Scan') {
+            steps {
+                sh "trivy fs --format table -o fs-report.html ."
+            }
+        }
+
+        stage('Sonar Analysis') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectKey=gcbank \
+                        -Dsonar.projectName=gcbank \
+                        -Dsonar.java.binaries=target
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate Check') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-cred'
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh "mvn package"
+            }
+        }
+
+        stage('Publish To Nexus') {
+            steps {
+                withMaven(globalMavenSettingsConfig: 'global-maven-settings-config', maven: 'maven3', traceability: true) {
+                    sh "mvn deploy"
+                }
+            }
+        }
+
+        stage('Docker Image Build & Tag') {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker-cred') {
+                        sh "docker build -t bofosu1/bankapp:${IMAGE_TAG} ."
+                    }
+                }
+            }
+        }
+
+        stage('Scan Image') {
+            steps {
+                sh "trivy image --format table -o image-report.html bofosu1/bankapp:${IMAGE_TAG}"
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker-cred') {
+                        sh "docker push bofosu1/bankapp:${IMAGE_TAG}"
+                    }
+                }
+            }
+        }
+
+        stage('Update Manifest File in Mega-Project-CD') {
+            steps {
+                script {
+                    // Clean workspace before cloning
+                    cleanWs()
+
+                    withCredentials([usernamePassword(credentialsId: 'git', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+                        sh '''
+                            echo "🚀 Cloning the Mega-Project-CD-main repository..."
+                            git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/bernardofosu/Mega-Project-CD-main.git
+
+                            echo "🧾 Updating the image tag in manifest.yaml..."
+                            cd Mega-Project-CD-main
+                            sed -i "s|bofosu1/bankapp:.*|bofosu1/bankapp:${IMAGE_TAG}|" Manifest/manifest.yaml
+
+                            echo "✅ Updated manifest file contents:"
+                            cat Manifest/manifest.yaml
+
+                            echo "🪶 Configuring Git for Jenkins commit..."
+                            git config user.name "Jenkins"
+                            git config user.email "jenkins@example.com"
+
+                            echo "💾 Committing and pushing changes..."
+                            git add Manifest/manifest.yaml
+                            git commit -m "Update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
+                            git push origin main || echo "Push failed"
+
+                            echo "🎉 Manifest file updated and pushed successfully to Mega-Project-CD-main!"
+                        '''
+                    }
+                }
+            }
+        }
+    } // end stages
+
+    post {
+        always {
+            script {
+                def jobName = env.JOB_NAME
+                def buildNumber = env.BUILD_NUMBER
+                // currentResult returns a string (SUCCESS/FAILURE/UNSTABLE/ABORTED)
+                def pipelineStatus = currentBuild.currentResult ?: 'UNKNOWN'
+                def bannerColor = (pipelineStatus.toUpperCase() == 'SUCCESS') ? 'green' : 'red'
+
+                def body = """
+                    <html>
+                    <body>
+                    <div style="border: 4px solid ${bannerColor}; padding: 10px;">
+                      <h2>${jobName} - Build ${buildNumber}</h2>
+                      <div style="background-color: ${bannerColor}; padding: 10px;">
+                        <h3 style="color: white;">Pipeline Status: ${pipelineStatus.toUpperCase()}</h3>
+                      </div>
+                      <p>Check the <a href=\"${env.BUILD_URL}\">console output</a>.</p>
+                    </div>
+                    </body>
+                    </html>
+                """
+
+                emailext (
+                    subject: "${jobName} - Build ${buildNumber} - ${pipelineStatus.toUpperCase()}",
+                    body: body,
+                    to: 'ofosubernard357@gmail.com',
+                    // Use the same SMTP user configured in Jenkins or a verified alias
+                    from: 'ofosubernard848@gmail.com',
+                    replyTo: 'ofosubernard8482024@gmail.com',
+                    mimeType: 'text/html',
+                    attachLog: true,
+                    compressLog: true
+                )
+            }
+        }
+    }
+} // end pipeline

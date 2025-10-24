@@ -1,0 +1,184 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven3'
+        jdk 'jdk17'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+        IMAGE_TAG = "v${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main', credentialsId: 'git-token', url: 'https://github.com/bernardofosu/Mega-Project-CI-main.git'
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                sh "mvn compile"
+            }
+        }
+
+        stage('Testing') {
+            steps {
+                sh "mvn test"
+            }
+        }
+
+        stage('Trivy FS Scan') {
+            steps {
+                sh "trivy fs --format table -o fs-report.html ."
+            }
+        }
+
+        stage('Sonar Analysis') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectKey=gcbank \
+                        -Dsonar.projectName=gcbank \
+                        -Dsonar.java.binaries=target
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate Check') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-cred'
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh "mvn package"
+            }
+        }
+
+        stage('Publish To Nexus') {
+            steps {
+                withMaven(globalMavenSettingsConfig: 'global-maven-settings-config', maven: 'maven3', traceability: true) {
+                    sh "mvn deploy"
+                }
+            }
+        }
+
+        stage('Docker Image Build & Tag') {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker-cred') {
+                        sh "docker build -t bofosu1/bankapp:${IMAGE_TAG} ."
+                    }
+                }
+            }
+        }
+
+        stage('Scan Image') {
+            steps {
+                sh "trivy image --format table -o image-report.html bofosu1/bankapp:${IMAGE_TAG}"
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker-cred') {
+                        sh "docker push bofosu1/bankapp:${IMAGE_TAG}"
+                    }
+                }
+            }
+        }
+
+        stage('Update Manifest File in Mega-Project-CD') {
+            steps {
+                script {
+                    // Clean workspace before cloning
+                    cleanWs()
+
+                    withCredentials([usernamePassword(credentialsId: 'git', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+                        sh '''
+                            echo "🚀 Cloning the Mega-Project-CD-main repository..."
+                            git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/bernardofosu/Mega-Project-CD-main.git
+
+                            echo "🧾 Updating the image tag in manifest.yaml..."
+                            cd Mega-Project-CD-main
+                            sed -i "s|bofosu1/bankapp:.*|bofosu1/bankapp:${IMAGE_TAG}|" Manifest/manifest.yaml
+
+                            echo "✅ Updated manifest file contents:"
+                            cat Manifest/manifest.yaml
+
+                            echo "🪶 Configuring Git for Jenkins commit..."
+                            git config user.name "Jenkins"
+                            git config user.email "jenkins@example.com"
+
+                            echo "💾 Committing and pushing changes..."
+                            git add Manifest/manifest.yaml
+                            git commit -m "Update image tag to ${IMAGE_TAG}" || echo "No changes to commit"
+                            git push origin main || echo "Push failed"
+
+                            echo "🎉 Manifest file updated and pushed successfully to Mega-Project-CD-main!"
+                        '''
+                    }
+                }
+            }
+        }
+    } // end stages
+
+    post {
+  success {
+    script {
+      def jobName = env.JOB_NAME
+      def buildNumber = env.BUILD_NUMBER
+      def body = """
+        <html><body style="font-family:Arial,sans-serif;">
+          <div style="border:4px solid #28a745;padding:10px;border-radius:6px;">
+            <h2 style="color:#28a745">${jobName} - Build ${buildNumber}</h2>
+            <p style="font-weight:bold;color:#28a745">Status: SUCCESS</p>
+            <p>View console: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+          </div>
+        </body></html>
+      """
+      emailext(
+        subject: "✅ ${jobName} - Build ${buildNumber} - SUCCESS",
+        body: body,
+        to: 'ofosubernard357@gmail.com',
+        from: 'ofosubernard848@gmail.com',
+        mimeType: 'text/html'
+      )
+    }
+  }
+
+  unstable {
+    script {
+      def jobName = env.JOB_NAME; def buildNumber = env.BUILD_NUMBER
+      def body = "<html><body><h2>${jobName} - Build ${buildNumber}</h2><p>Status: UNSTABLE</p><p><a href='${env.BUILD_URL}'>Console</a></p></body></html>"
+      emailext(subject: "⚠️ ${jobName} - Build ${buildNumber} - UNSTABLE", body: body, to: 'ofosubernard357@gmail.com', from: 'ofosubernard848@gmail.com', mimeType: 'text/html', attachLog: true, compressLog: true)
+    }
+  }
+
+  failure {
+    script {
+      def jobName = env.JOB_NAME; def buildNumber = env.BUILD_NUMBER
+      def body = """
+        <html><body style="font-family:Arial,sans-serif;">
+          <div style="border:4px solid #dc3545;padding:10px;border-radius:6px;">
+            <h2 style="color:#dc3545">${jobName} - Build ${buildNumber}</h2>
+            <p style="font-weight:bold;color:#dc3545">Status: FAILURE</p>
+            <p>View console: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
+          </div>
+        </body></html>
+      """
+      // attach logs to help triage
+      emailext(subject: "❌ ${jobName} - Build ${buildNumber} - FAILURE", body: body, to: 'ofosubernard357@gmail.com', from: 'ofosubernard848@gmail.com', mimeType: 'text/html', attachLog: true, compressLog: true)
+    }
+  }
+}
+} // end pipeline

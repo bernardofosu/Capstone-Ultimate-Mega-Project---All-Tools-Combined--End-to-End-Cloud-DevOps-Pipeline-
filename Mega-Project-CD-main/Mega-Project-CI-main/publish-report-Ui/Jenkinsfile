@@ -1,0 +1,121 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven3'
+        jdk 'jdk17'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main', credentialsId: 'git-token', url: 'https://github.com/bernardofosu/Mega-Project-CI-main.git'
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                sh 'mvn compile'
+            }
+        }
+
+        stage('Testing') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        // Optional: manifest scan (pom.xml) — fast, detects direct dependency issues
+        stage('Trivy - Dependency Scan (pom.xml)') {
+            steps {
+                sh '''
+                    # ensure trivy available and write to workspace
+                    trivy fs --scanners vuln,config,secret --dependency-tree --format table -o fs-deps-report.html pom.xml || true
+                '''
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn package -DskipTests=false'
+            }
+        }
+
+        // Artifact scan of built jar — best for full transitive deps
+        stage('Trivy - Artifact Scan (JAR)') {
+            steps {
+                sh '''
+                    # scan built artifacts and write main report friendly for HTML viewing
+                    trivy fs --scanners vuln --format table -o fs-report.html target/*.jar || true
+                '''
+            }
+        }
+
+        stage('Sonar Analysis') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectKey=gcbank \
+                        -Dsonar.projectName=gcbank \
+                        -Dsonar.java.binaries=target
+                    '''
+                }
+            }
+        }
+
+        stage('Quality Gate Check') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-cred'
+                }
+            }
+        }
+
+        stage('Publish To Nexus') {
+            steps {
+                withMaven(globalMavenSettingsConfig: 'global-maven-settings-config', maven: 'maven3', traceability: true) {
+                    sh 'mvn deploy'
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // archive both the dependency report and the main report and the jar
+            archiveArtifacts artifacts: 'fs-report.html, fs-deps-report.html, target/*.jar', fingerprint: true
+
+            // publish the main Trivy report as HTML (requires HTML Publisher plugin)
+            publishHTML(target: [
+                allowMissing: true,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: '.',
+                reportFiles: 'fs-report.html',
+                reportName: '🧾 Trivy FS Scan Report'
+            ])
+
+            // optionally publish the dependency manifest report too
+            publishHTML(target: [
+                allowMissing: true,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: '.',
+                reportFiles: 'fs-deps-report.html',
+                reportName: '🧾 Trivy Dependency Report'
+            ])
+
+            // print quick build links to the console (helpful)
+            echo "Artifacts archived: fs-report.html, fs-deps-report.html, target/*.jar"
+        }
+
+        failure {
+            echo "Build failed — check console and reports."
+        }
+    }
+}
