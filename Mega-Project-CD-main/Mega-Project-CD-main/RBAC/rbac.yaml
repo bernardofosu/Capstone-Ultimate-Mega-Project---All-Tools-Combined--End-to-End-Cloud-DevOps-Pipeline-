@@ -118,6 +118,3 @@ metadata:
 # kubectl apply -f rbac.yaml
 #kubectl get sa,role,rolebinding,clusterrole,clusterrolebinding,secrets -n webapps
 
-# kubectl describe secret sa-secret -n webapps
-# copy the token value and use it in Jenkins Kubernetes plugin configuration
-

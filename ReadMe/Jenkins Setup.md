@@ -54,7 +54,8 @@ Docker Pipeline
 
 Kubernetes CLI (v1.12.1)
 
-HTML Publisher
+- HTML Publisher
+- Generic Webhook Trigger
 
 📦 These plugins allow Jenkins to integrate with Git, Docker, and automate build pipelines easily.
 
@@ -119,9 +120,18 @@ kubectl version --client
 
 📘 [Kubernetes kubectl Install Docs](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/)
 
----
+## ☸️ **Install kubectl on the Jenkins Server**
 
-## 🛡️ Step 7: Install Trivy (Image Scanner)
+```bash
+curl -fL -o kubectl https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+kubectl version --client
+```
+
+📘 [Install kubectl Docs](https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html#linux_amd64_kubectl)
+
+## 🛡️ Install Trivy (Image Scanner)
 
 We install **Trivy** on the Jenkins server to scan Docker images and Kubernetes workloads for vulnerabilities.
 

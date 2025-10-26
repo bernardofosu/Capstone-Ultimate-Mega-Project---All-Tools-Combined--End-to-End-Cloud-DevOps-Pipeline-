@@ -10,7 +10,17 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: www.shackverse.co
+    - host: nakodtech.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bankapp-service
+                port:
+                  number: 80
+    - host: www.nakodtech.xyz
       http:
         paths:
           - path: /
@@ -22,5 +32,6 @@ spec:
                   number: 80
   tls:
     - hosts:
-        - www.shackverse.co
-      secretName: shackverse-co-tls
+        - nakodtech.xyz
+        - www.nakodtech.xyz
+      secretName: nakodtech-xyz-tls
