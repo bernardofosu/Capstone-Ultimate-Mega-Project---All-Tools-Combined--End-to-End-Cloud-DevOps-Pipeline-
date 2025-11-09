@@ -1,6 +1,6 @@
 🧰 **Jenkins Setup Notes**
 
----
+[Install Jenkins](https://www.jenkins.io/doc/book/installing/linux/)
 
 ## 🚀 Step 1: Unlock Jenkins
 
