@@ -43,7 +43,7 @@ docker run -d \
   -v sonarqube_data:/opt/sonarqube/data \
   -v sonarqube_logs:/opt/sonarqube/logs \
   -v sonarqube_extensions:/opt/sonarqube/extensions \
-  sonarqube:community
+  mc1arke/sonarqube-with-community-branch-plugin
 ```
 
 --network sonarnet \
