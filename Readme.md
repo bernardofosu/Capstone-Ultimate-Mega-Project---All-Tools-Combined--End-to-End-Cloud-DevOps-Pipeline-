@@ -190,7 +190,9 @@ kubectl get ns
 
 [After creating namespace, then add the RBAC](./Mega-Project-Terraform-main/RBAC/rbac.md)
 
-## Connect Sonarqube to Jenkins
+## Setup and Connect Sonarqube to Jenkins
+
+[Setup sonarqube](./ReadMe/SonarQube_Docker_Setup.md)
 
 [Connect Sonarqube to Jenkins](./ReadMe/Connect-SonarQube-to-Jenkins-Guide.md)
 
