@@ -1,6 +1,9 @@
 # Capstone Ultimate Mega Project – End-to-End Cloud DevOps Pipeline
 
-🖥️ **Set up Infra Server**
+## 🖥️ **Set up Infra Server**
+
+### Final Project
+![final Project](./final-UI.png)
 
 ---
 
