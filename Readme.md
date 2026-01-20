@@ -227,6 +227,39 @@ kubectl get ns
 - [How to Configure GitHub Webhook for Argo CD](./Mega-Project-CD-main/ArgoCD/How%20to%20Configure%20GitHub%20Webhook%20for%20Argo%20CD.md)
 - [Prometheus & Grafana Monitoring Setup via Helm](/Grafana%20and%20Prometheus%20Setup/Prometheus%20&%20Grafana%20Monitoring%20Setup%20via%20Helm.md)
 
+📸 Project Evidence & Screenshots
+🔁 CI/CD Pipeline (Jenkins)
+![CD Deployed in Jenkins](CD-Deployed-in-Jenkins.png)
+
+🚀 Kubernetes Deployment (AKS)
+![Final Deployment Status](CD%20Yaml%20Pipeline/final.png)
+![Deployment Verification](CD%20Yaml%20Pipeline/final-1.png)
+
+🌐 Deployed Application (UI)
+![Deployed Application UI](CD%20Yaml%20Pipeline/deployed-app-UI.png)
+
+📦 Kubernetes Resources
+![Kubernetes Workloads](CD%20Yaml%20Pipeline/workloads.png)
+![Services and Ingress](CD%20Yaml%20Pipeline/svc-ingress.png)
+
+📊 Observability & GitOps
+Argo CD
+![Argo CD Final Sync](Route53_%26_Spaceship_Hosting/argo-cd-final-sync.png)
+
+Grafana & Prometheus
+![Grafana Dashboard](Grafana%20and%20Prometheus%20Setup/grafana.png)
+![Prometheus Metrics](Grafana%20and%20Prometheus%20Setup/metrics.png)
+
+🌍 DNS, Ingress & TLS (Route 53 + SSL)
+![Route 53 Records](Route53_%26_Spaceship_Hosting/route53.png)
+![Final Certificate Status](Route53_%26_Spaceship_Hosting/final-cert-status.png)
+![Spaceship DNS Configuration](Route53_%26_Spaceship_Hosting/spaceship.png)
+
+🧩 Architecture & Supporting Evidence
+![Project Structure](project-structure.png)
+![Cluster Information](Grafana%20and%20Prometheus%20Setup/cluster-info.png)
+![Target Health](Grafana%20and%20Prometheus%20Setup/target-health.png)
+
 Final Project CD Pipeline
 
 ````java
